@@ -73,11 +73,19 @@ int execve(const char *path, char *const argv[], char *const envp[]) {
         intercept_exec_call(path, (char const *const *)argv, new_envp);
         intercepted = true;
 
-        return execve_real(path, argv, (char *const *restrict)new_envp);
+        if(!should_skip(path, (char const *const *)argv, new_envp)) {
+            return execve_real(path, argv, (char *const *restrict)new_envp);
+        } else {
+            exit(0);
+        }
     }
 
     // Execute original execve()
-    return execve_real(path, argv, envp);
+    if(!should_skip(path, (char const *const *)argv, envp)) {
+        return execve_real(path, argv, envp);
+    } else {
+        exit(0);
+    }
 }
 
 int execvp(const char *filename, char *const argv[]) {
@@ -105,7 +113,11 @@ int execvp(const char *filename, char *const argv[]) {
         update_environ(new_envp, true);
     }
 
-    return execvp_real(filename, argv);
+    if(!should_skip(filename, (char const *const *)argv, environ)) {
+        return execvp_real(filename, argv);
+    } else {
+        exit(0);
+    }
 }
 
 int execv(const char *filename, char *const argv[]) {
@@ -138,7 +150,11 @@ int execv(const char *filename, char *const argv[]) {
     intercepted = true;
     #endif
 
-    return execv_real(filename, argv);
+    if(!should_skip(filename, (char const *const *)argv, environ)) {
+        return execv_real(filename, argv);
+    } else {
+        exit(0);
+    }
 }
 
 int posix_spawn(pid_t *restrict pid, const char *restrict path, const posix_spawn_file_actions_t *file_actions,

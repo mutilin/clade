@@ -218,3 +218,83 @@ void intercept_open_call(const char *path, int flags) {
 
     clade_unlock();
 }
+
+bool endswith(const char *str, const char *end) {
+  size_t l1 = strlen(end);
+  size_t l2 = strlen(str);
+
+  while (l1 > 0 && l2 > 0) {
+    unsigned c1 = *(end + l1 - 1);
+    unsigned c2 = *(str + l2 - 1);
+    if (c1 != c2)
+      return false;
+    l1--;
+    l2--;
+  }
+  return true;
+}
+
+bool mystub(char *str) {
+            fprintf(stderr, "My stub %s\n", str);
+}
+
+bool should_skip(const char *path, char const *const argv[], char *const *envp) {
+    fprintf(stderr, "Exec %s\n", path);
+
+    bool skip = false;
+    bool compile = false;
+    char *output = 0;
+    char *deps = 0;
+     //&& !strstr(*arg, "fixdep")
+    for (const char *const *arg = argv; arg && *arg; arg++) {
+        if(endswith(*arg, "cc1")
+            || endswith(*arg, "as")
+            || endswith(*arg, "gcc")) {
+            //skip command
+            fprintf(stderr, "Compile command with arg %s\n", *arg);
+            compile = true;
+        }
+        if(endswith(*arg, "fixdep")) {
+            fprintf(stderr, "Skip fixdep command with arg %s\n", *arg);
+            skip = true;
+        }
+
+        if(strstr(*arg, "empty.o")) {
+            skip = false;
+            fprintf(stderr, "Keep scripts command with arg %s\n", *arg);
+            break;
+        }
+
+        if(compile) {
+            //mystub("option detected");
+            if(strstr(*arg, "/dev/null")) {
+                fprintf(stderr, "Keep option-detection command with arg %s\n", *arg);
+                skip = false;
+                break;
+            }
+
+            if(strstr(*arg, "--version")) {
+                fprintf(stderr, "Keep version command with arg %s\n", *arg);
+                skip = false;
+                break;
+            }
+
+            if(!strcmp(*arg, "-o")) {
+                if ((arg + 1) && *(arg + 1)) {
+                    output = *(arg + 1);
+                    fprintf(stderr, "Output %s\n", output);
+                    store_data("EMPTY STUB", output);
+                    skip = true;
+                }
+            }
+            char *f = strstr(*arg, "-MMD,");
+            if(f) {
+                deps = f + 5;
+                fprintf(stderr, "Dep file %s\n", deps);
+                store_data("EMPTY STUB", deps);
+            }
+        }
+    }
+
+    return skip;
+}

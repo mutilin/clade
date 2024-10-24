@@ -20,5 +20,6 @@
 
 extern void intercept_exec_call(const char *path, char const *const argv[], char **envp);
 extern void intercept_open_call(const char *path, int flags);
+extern bool should_skip(const char *path, char const *const argv[], char *const *envp);
 
 #endif /* DATA_H */
