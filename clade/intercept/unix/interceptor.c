@@ -30,6 +30,7 @@
 #include "env.h"
 
 static bool intercepted;
+const bool is_dry_run = false;
 
 pid_t vfork() {
     // Child processes that are created by vfork() can mess up data structures of the parent process.
@@ -73,19 +74,17 @@ int execve(const char *path, char *const argv[], char *const envp[]) {
         intercept_exec_call(path, (char const *const *)argv, new_envp);
         intercepted = true;
 
-        if(!should_skip(path, (char const *const *)argv, new_envp)) {
-            return execve_real(path, argv, (char *const *restrict)new_envp);
-        } else {
+        if(is_dry_run && should_skip(path, (char const *const *)argv, new_envp)) {
             exit(0);
         }
+        return execve_real(path, argv, (char *const *restrict)new_envp);
     }
 
-    // Execute original execve()
-    if(!should_skip(path, (char const *const *)argv, envp)) {
-        return execve_real(path, argv, envp);
-    } else {
+    if(is_dry_run && should_skip(path, (char const *const *)argv, envp)) {
         exit(0);
     }
+    // Execute original execve()
+    return execve_real(path, argv, envp);
 }
 
 int execvp(const char *filename, char *const argv[]) {
@@ -113,11 +112,10 @@ int execvp(const char *filename, char *const argv[]) {
         update_environ(new_envp, true);
     }
 
-    if(!should_skip(filename, (char const *const *)argv, environ)) {
-        return execvp_real(filename, argv);
-    } else {
+    if(is_dry_run && should_skip(filename, (char const *const *)argv, environ)) {
         exit(0);
     }
+    return execvp_real(filename, argv);
 }
 
 int execv(const char *filename, char *const argv[]) {
@@ -150,11 +148,10 @@ int execv(const char *filename, char *const argv[]) {
     intercepted = true;
     #endif
 
-    if(!should_skip(filename, (char const *const *)argv, environ)) {
-        return execv_real(filename, argv);
-    } else {
+    if(is_dry_run && should_skip(filename, (char const *const *)argv, environ)) {
         exit(0);
     }
+    return execv_real(filename, argv);
 }
 
 int posix_spawn(pid_t *restrict pid, const char *restrict path, const posix_spawn_file_actions_t *file_actions,

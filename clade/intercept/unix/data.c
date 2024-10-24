@@ -223,6 +223,10 @@ bool endswith(const char *str, const char *end) {
   size_t l1 = strlen(end);
   size_t l2 = strlen(str);
 
+  if(l1 > l2) {
+    return false;
+  }
+
   while (l1 > 0 && l2 > 0) {
     unsigned c1 = *(end + l1 - 1);
     unsigned c2 = *(str + l2 - 1);
@@ -234,9 +238,18 @@ bool endswith(const char *str, const char *end) {
   return true;
 }
 
-bool mystub(char *str) {
-            fprintf(stderr, "My stub %s\n", str);
-}
+char const *const compile_cmds[] = {"cc1", "as", "ld",
+    "gcc",
+    0 };
+
+char const *const skipped_cmds[] = {"fixdep", "readelf", "objcopy",
+    "vdso2c", "relocs", "sorttable",
+    "mkcpustr", "mkpiggy", "tools/build",
+    "objtool", "gen_init_cpio", "extract-cert",
+    "genheaders", "asn1_compiler", "gen_crc32table",
+    "conmakehash", "strip",
+    "xargs", "objdump",
+    0 };
 
 bool should_skip(const char *path, char const *const argv[], char *const *envp) {
     fprintf(stderr, "Exec %s\n", path);
@@ -245,26 +258,50 @@ bool should_skip(const char *path, char const *const argv[], char *const *envp) 
     bool compile = false;
     char *output = 0;
     char *deps = 0;
-     //&& !strstr(*arg, "fixdep")
-    for (const char *const *arg = argv; arg && *arg; arg++) {
-        if(endswith(*arg, "cc1")
-            || endswith(*arg, "as")
-            || endswith(*arg, "gcc")) {
-            //skip command
-            fprintf(stderr, "Compile command with arg %s\n", *arg);
-            compile = true;
-        }
-        if(endswith(*arg, "fixdep")) {
-            fprintf(stderr, "Skip fixdep command with arg %s\n", *arg);
-            skip = true;
+    bool ar = false;
+
+    const char *const *arg = argv;
+
+    // check command name
+    if(arg && *arg) {
+        for(const char *const *cmd = compile_cmds; cmd && *cmd; cmd++) {
+            if(endswith(*arg, *cmd)) {
+                //skip compile command
+                fprintf(stderr, "Compile command with name %s\n", *arg);
+                compile = true;
+            }
         }
 
+        for(const char *const *cmd = skipped_cmds; cmd && *cmd; cmd++) {
+            if(endswith(*arg, *cmd)) {
+                fprintf(stderr, "Skip command '%s' with name %s\n", *cmd, *arg);
+                skip = true;
+            }
+        }
+
+        if(endswith(*arg, "ar")) {
+            fprintf(stderr, "Skip ar command with name %s\n", *arg);
+            skip = true;
+            ar = true;
+        }
+
+        arg++;
+    }
+
+    // process arguments
+    for (; arg && *arg; arg++) {
         if(strstr(*arg, "empty.o")) {
             skip = false;
             fprintf(stderr, "Keep scripts command with arg %s\n", *arg);
             break;
         }
 
+        if(ar) {
+            if(endswith(*arg, ".a")) {
+                fprintf(stderr, "Output library name %s\n", *arg);
+                store_data("EMPTY LIB STUB", *arg);
+            }
+        }
         if(compile) {
             //mystub("option detected");
             if(strstr(*arg, "/dev/null")) {
@@ -283,7 +320,7 @@ bool should_skip(const char *path, char const *const argv[], char *const *envp) 
                 if ((arg + 1) && *(arg + 1)) {
                     output = *(arg + 1);
                     fprintf(stderr, "Output %s\n", output);
-                    store_data("EMPTY STUB", output);
+                    store_data("EMPTY OBJ STUB", output);
                     skip = true;
                 }
             }
@@ -291,7 +328,7 @@ bool should_skip(const char *path, char const *const argv[], char *const *envp) 
             if(f) {
                 deps = f + 5;
                 fprintf(stderr, "Dep file %s\n", deps);
-                store_data("EMPTY STUB", deps);
+                store_data("EMPTY DEP STUB", deps);
             }
         }
     }
