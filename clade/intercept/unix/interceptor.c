@@ -30,7 +30,7 @@
 #include "env.h"
 
 static bool intercepted;
-const bool is_dry_run = false;
+const bool is_dry_run = true;
 
 pid_t vfork() {
     // Child processes that are created by vfork() can mess up data structures of the parent process.
