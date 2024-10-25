@@ -248,7 +248,8 @@ char const *const skipped_cmds[] = {"fixdep", "readelf", "objcopy",
     "objtool", "gen_init_cpio", "extract-cert",
     "genheaders", "asn1_compiler", "gen_crc32table",
     "conmakehash", "strip",
-    "xargs", "objdump",
+    "xargs", "objdump", "mk_elfconfig",
+    "modpost",
     0 };
 
 bool should_skip(const char *path, char const *const argv[], char *const *envp) {
@@ -321,12 +322,15 @@ bool should_skip(const char *path, char const *const argv[], char *const *envp) 
             if(!strcmp(*arg, "-o")) {
                 if ((arg + 1) && *(arg + 1)) {
                     output = *(arg + 1);
-                    //if(strstr(output, "scripts/mod")) {
+                    //if(endswith(output, "mk_elfconfig")) {
                     //    fprintf(stderr, "Keep scripts command with arg %s\n", output);
                     //    skip = false;
-                    //} else {
+                    if(endswith(output, "bounds.s")) {
+                        fprintf(stderr, "Keep bounds.s command with arg %s\n", output);
+                        skip = false;
+                    } else {
                         skip = true;
-                    //}
+                    }
                 }
             }
 
@@ -356,17 +360,19 @@ bool should_skip(const char *path, char const *const argv[], char *const *envp) 
                 store_data("EMPTY OBJ STUB", output);
             }
             if(dumpbase) {
-                fprintf(stderr, "Dumpbase %s\n", dumpbase);
-                if(dumpdir) {
-                    fprintf(stderr, "Dumpdir %s\n", dumpdir);
-                    size_t len = strlen(dumpdir) + strlen(dumpbase) + 2;
-                    char file[len];
-                    strcpy(file, dumpdir);
-                    strcat(file, "/");
-                    strcat(file, dumpbase);
-                    store_data("//EMPTY C DUMP STUB", file);
-                } else {
-                    store_data("//EMPTY C DUMP STUB", dumpbase);
+                if(endswith(dumpbase, "vmlinux.export.c")) {
+                    fprintf(stderr, "Dumpbase %s\n", dumpbase);
+                    if(dumpdir) {
+                        fprintf(stderr, "Dumpdir %s\n", dumpdir);
+                        size_t len = strlen(dumpdir) + strlen(dumpbase) + 2;
+                        char file[len];
+                        strcpy(file, dumpdir);
+                        strcat(file, "/");
+                        strcat(file, dumpbase);
+                        store_data("//EMPTY C DUMP STUB", file);
+                    } else {
+                        store_data("//EMPTY C DUMP STUB", dumpbase);
+                    }
                 }
             }
             if(deps) {
