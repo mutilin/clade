@@ -249,7 +249,7 @@ char const *const skipped_cmds[] = {"fixdep", "readelf", "objcopy",
     "genheaders", "asn1_compiler", "gen_crc32table",
     "conmakehash", "strip",
     "xargs", "objdump", "mk_elfconfig",
-    "modpost",
+    "kallsyms",
     0 };
 
 bool should_skip(const char *path, char const *const argv[], char *const *envp) {
@@ -262,6 +262,8 @@ bool should_skip(const char *path, char const *const argv[], char *const *envp) 
     bool ar = false;
     char *dumpdir = 0;
     char *dumpbase = 0;
+    bool modpost = false;
+    char *export = 0;
 
     const char *const *arg = argv;
 
@@ -286,6 +288,12 @@ bool should_skip(const char *path, char const *const argv[], char *const *envp) 
             fprintf(stderr, "Skip ar command with name %s\n", *arg);
             skip = true;
             ar = true;
+        }
+
+        if(endswith(*arg, "modpost")) {
+            fprintf(stderr, "Skip modpost command with name %s\n", *arg);
+            skip = true;
+            modpost = true;
         }
 
         arg++;
@@ -351,6 +359,18 @@ bool should_skip(const char *path, char const *const argv[], char *const *envp) 
                 deps = f + 5;
             }
         }
+        if(modpost) {
+            if(!strcmp(*arg, "-o")) {
+                if ((arg + 1) && *(arg + 1)) {
+                    output = *(arg + 1);
+                    if (endswith(output, "vmlinux.symvers")) {
+                        fprintf(stderr, "Need to generate vmlinux for arg %s\n", output);
+                        export = ".vmlinux.export.c";
+                        skip = true;
+                    }
+                }
+            }
+        }
     }
 
     if(skip) {
@@ -379,6 +399,10 @@ bool should_skip(const char *path, char const *const argv[], char *const *envp) 
                 fprintf(stderr, "Dep file %s\n", deps);
                 store_data("EMPTY DEP STUB", deps);
             }
+        }
+        if(export) {
+            fprintf(stderr, "Export %s\n", export);
+            store_data("EMPTY EXPORT STUB", export);
         }
     }
 
