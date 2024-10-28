@@ -28,6 +28,9 @@
 
 #define DELIMITER "||"
 
+//#define DMSG(...)  fprintf(stderr, __VA_ARGS__)
+#define DMSG(...)  do{} while(0)
+
 static void expand_newlines(char *dest, const char *src) {
     for (size_t i = 0; i < strlen(src); i++) {
         switch(src[i]) {
@@ -74,7 +77,7 @@ static char *prepare_exec_data(const char *path, char const *const argv[], char 
     // Get current working directory
     char *cwd = getcwd(NULL, 0);
     if (!cwd) {
-        // fprintf(stderr, "Couldn't get current working directory: %d\n", errno);
+        // DMSG("Couldn't get current working directory: %d\n", errno);
         cwd = "";
     }
 
@@ -93,7 +96,7 @@ static char *prepare_exec_data(const char *path, char const *const argv[], char 
                         + strlen(correct_path) + strlen("\n"));
 
     if (!data) {
-        fprintf(stderr, "Couldn't allocate memory\n");
+        DMSG("Couldn't allocate memory\n");
         exit(EXIT_FAILURE);
     }
 
@@ -129,7 +132,7 @@ static char *prepare_open_data(const char *path, int flags) {
     char *data = malloc(sizeof(int) * 3 + strlen("   \n") + strlen(path));
 
     if (!data) {
-        fprintf(stderr, "Couldn't allocate memory\n");
+        DMSG("Couldn't allocate memory\n");
         exit(EXIT_FAILURE);
     }
 
@@ -155,7 +158,7 @@ static char *prepare_env_data(char const *const envp[]) {
     char *data = malloc(envs_len + strlen("\n"));
 
     if (!data) {
-        fprintf(stderr, "Couldn't allocate memory\n");
+        DMSG("Couldn't allocate memory\n");
         exit(EXIT_FAILURE);
     }
 
@@ -173,7 +176,7 @@ static char *prepare_env_data(char const *const envp[]) {
 static void store_data(const char *data, const char *data_file) {
     FILE *f = fopen(data_file, "a");
     if (!f) {
-        fprintf(stderr, "Couldn't open %s file\n", data_file);
+        DMSG("Couldn't open %s file\n", data_file);
         exit(EXIT_FAILURE);
     }
 
@@ -249,11 +252,13 @@ char const *const skipped_cmds[] = {"fixdep", "readelf", "objcopy",
     "genheaders", "asn1_compiler", "gen_crc32table",
     "conmakehash", "strip",
     "xargs", "objdump", "mk_elfconfig",
-    "kallsyms",
+    "kallsyms", "scripts/unifdef", "scripts/ipe/polgen/polgen",
+    "mktables", "gen_crc64table", "drivers/video/logo/pnmtologo",
+    "dtc/dtc",
     0 };
 
 bool should_skip(const char *path, char const *const argv[], char *const *envp) {
-    fprintf(stderr, "Exec %s\n", path);
+    DMSG("Exec %s\n", path);
 
     bool skip = false;
     bool compile = false;
@@ -272,26 +277,26 @@ bool should_skip(const char *path, char const *const argv[], char *const *envp) 
         for(const char *const *cmd = compile_cmds; cmd && *cmd; cmd++) {
             if(endswith(*arg, *cmd)) {
                 //skip compile command
-                fprintf(stderr, "Compile command with name %s\n", *arg);
+                DMSG("Compile command with name %s\n", *arg);
                 compile = true;
             }
         }
 
         for(const char *const *cmd = skipped_cmds; cmd && *cmd; cmd++) {
             if(endswith(*arg, *cmd)) {
-                fprintf(stderr, "Skip command '%s' with name %s\n", *cmd, *arg);
+                DMSG("Skip command '%s' with name %s\n", *cmd, *arg);
                 skip = true;
             }
         }
 
         if(endswith(*arg, "ar")) {
-            fprintf(stderr, "Skip ar command with name %s\n", *arg);
+            DMSG("Skip ar command with name %s\n", *arg);
             skip = true;
             ar = true;
         }
 
         if(endswith(*arg, "modpost")) {
-            fprintf(stderr, "Skip modpost command with name %s\n", *arg);
+            DMSG("Skip modpost command with name %s\n", *arg);
             skip = true;
             modpost = true;
         }
@@ -303,26 +308,26 @@ bool should_skip(const char *path, char const *const argv[], char *const *envp) 
     for (; arg && *arg; arg++) {
         if(strstr(*arg, "empty.o")) {
             skip = false;
-            fprintf(stderr, "Keep scripts command with arg %s\n", *arg);
+            DMSG("Keep scripts command with arg %s\n", *arg);
             break;
         }
 
         if(ar) {
             if(endswith(*arg, ".a")) {
-                fprintf(stderr, "Output library name %s\n", *arg);
+                DMSG("Output library name %s\n", *arg);
                 store_data("EMPTY LIB STUB", *arg);
             }
         }
         if(compile) {
             //mystub("option detected");
             if(strstr(*arg, "/dev/null")) {
-                fprintf(stderr, "Keep option-detection command with arg %s\n", *arg);
+                DMSG("Keep option-detection command with arg %s\n", *arg);
                 skip = false;
                 break;
             }
 
             if(strstr(*arg, "--version")) {
-                fprintf(stderr, "Keep version command with arg %s\n", *arg);
+                DMSG("Keep version command with arg %s\n", *arg);
                 skip = false;
                 break;
             }
@@ -331,10 +336,10 @@ bool should_skip(const char *path, char const *const argv[], char *const *envp) 
                 if ((arg + 1) && *(arg + 1)) {
                     output = *(arg + 1);
                     //if(endswith(output, "mk_elfconfig")) {
-                    //    fprintf(stderr, "Keep scripts command with arg %s\n", output);
+                    //    DMSG("Keep scripts command with arg %s\n", output);
                     //    skip = false;
                     if(endswith(output, "bounds.s")) {
-                        fprintf(stderr, "Keep bounds.s command with arg %s\n", output);
+                        DMSG("Keep bounds.s command with arg %s\n", output);
                         skip = false;
                     } else {
                         skip = true;
@@ -364,7 +369,7 @@ bool should_skip(const char *path, char const *const argv[], char *const *envp) 
                 if ((arg + 1) && *(arg + 1)) {
                     output = *(arg + 1);
                     if (endswith(output, "vmlinux.symvers")) {
-                        fprintf(stderr, "Need to generate vmlinux for arg %s\n", output);
+                        DMSG("Need to generate vmlinux for arg %s\n", output);
                         export = ".vmlinux.export.c";
                         skip = true;
                     }
@@ -376,14 +381,14 @@ bool should_skip(const char *path, char const *const argv[], char *const *envp) 
     if(skip) {
         if(compile) {
             if(output) {
-                fprintf(stderr, "Output %s\n", output);
+                DMSG("Output %s\n", output);
                 store_data("EMPTY OBJ STUB", output);
             }
             if(dumpbase) {
                 if(endswith(dumpbase, "vmlinux.export.c")) {
-                    fprintf(stderr, "Dumpbase %s\n", dumpbase);
+                    DMSG("Dumpbase %s\n", dumpbase);
                     if(dumpdir) {
-                        fprintf(stderr, "Dumpdir %s\n", dumpdir);
+                        DMSG("Dumpdir %s\n", dumpdir);
                         size_t len = strlen(dumpdir) + strlen(dumpbase) + 2;
                         char file[len];
                         strcpy(file, dumpdir);
@@ -396,12 +401,12 @@ bool should_skip(const char *path, char const *const argv[], char *const *envp) 
                 }
             }
             if(deps) {
-                fprintf(stderr, "Dep file %s\n", deps);
+                DMSG("Dep file %s\n", deps);
                 store_data("EMPTY DEP STUB", deps);
             }
         }
         if(export) {
-            fprintf(stderr, "Export %s\n", export);
+            DMSG("Export %s\n", export);
             store_data("EMPTY EXPORT STUB", export);
         }
     }
