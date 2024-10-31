@@ -28,8 +28,8 @@
 
 #define DELIMITER "||"
 
-//#define DMSG(...)  fprintf(stderr, __VA_ARGS__)
-#define DMSG(...)  do{} while(0)
+#define DMSG(...)  fprintf(stderr, __VA_ARGS__)
+//#define DMSG(...)  do{} while(0)
 
 static void expand_newlines(char *dest, const char *src) {
     for (size_t i = 0; i < strlen(src); i++) {
@@ -241,6 +241,19 @@ bool endswith(const char *str, const char *end) {
   return true;
 }
 
+bool startswith(const char *str, const char *start) {
+  const char *l1 = str;
+  const char *l2 = start;
+
+  while (*l1 > 0 && *l2 > 0) {
+    if (*l1 != *l2)
+      return false;
+    l1++;
+    l2++;
+  }
+  return *l2 == 0;
+}
+
 char const *const compile_cmds[] = {"cc1", "as", "ld",
     "gcc",
     0 };
@@ -254,21 +267,35 @@ char const *const skipped_cmds[] = {"fixdep", "readelf", "objcopy",
     "xargs", "objdump", "mk_elfconfig",
     "kallsyms", "scripts/unifdef", "scripts/ipe/polgen/polgen",
     "mktables", "gen_crc64table", "drivers/video/logo/pnmtologo",
-    "dtc/dtc",
+    "mkregtable", "xe_gen_wa_oob", "drivers/accessibility/speakup/makemapdata",
+    "drivers/accessibility/speakup/genmap", "dtc/fdtoverlay",
     0 };
 
 bool should_skip(const char *path, char const *const argv[], char *const *envp) {
     DMSG("Exec %s\n", path);
 
     bool skip = false;
+
+    // compile arguments
     bool compile = false;
     char *output = 0;
     char *deps = 0;
-    bool ar = false;
     char *dumpdir = 0;
     char *dumpbase = 0;
+    char *map = 0;
+
+    // ar arguments
+    bool ar = false;
+    char *ara = 0;
+
+    // modpost arguments
     bool modpost = false;
     char *export = 0;
+
+    // dtc arguments
+    bool dtc = false;
+    char *dtcd = 0;
+    char *dtcout = 0;
 
     const char *const *arg = argv;
 
@@ -301,6 +328,11 @@ bool should_skip(const char *path, char const *const argv[], char *const *envp) 
             modpost = true;
         }
 
+        if(endswith(*arg, "dtc/dtc")) {
+            DMSG("Skip dtc command with name %s\n", *arg);
+            skip = true;
+            dtc = true;
+        }
         arg++;
     }
 
@@ -315,7 +347,7 @@ bool should_skip(const char *path, char const *const argv[], char *const *envp) 
         if(ar) {
             if(endswith(*arg, ".a")) {
                 DMSG("Output library name %s\n", *arg);
-                store_data("EMPTY LIB STUB", *arg);
+                ara = *arg;
             }
         }
         if(compile) {
@@ -359,16 +391,35 @@ bool should_skip(const char *path, char const *const argv[], char *const *envp) 
                 }
             }
 
+            if(startswith(*arg, "-Map=")) {
+                map = *(arg) + 5;
+            }
+
             char *f = strstr(*arg, "-MMD,");
             if(f) {
                 deps = f + 5;
+            }
+        }
+        if(dtc) {
+            if(!strcmp(*arg, "-d")) {
+                if ((arg + 1) && *(arg + 1)) {
+                    dtcd = *(arg + 1);
+                    if ((arg + 2) && *(arg + 2)) {
+                        dtcout = *(arg + 2);
+                    }
+                }
+            }
+            if(!strcmp(*arg, "-o")) {
+                if ((arg + 1) && *(arg + 1)) {
+                    output = *(arg + 1);
+                }
             }
         }
         if(modpost) {
             if(!strcmp(*arg, "-o")) {
                 if ((arg + 1) && *(arg + 1)) {
                     output = *(arg + 1);
-                    if (endswith(output, "vmlinux.symvers")) {
+                    if (endswith(output, ".symvers")) {
                         DMSG("Need to generate vmlinux for arg %s\n", output);
                         export = ".vmlinux.export.c";
                         skip = true;
@@ -404,6 +455,27 @@ bool should_skip(const char *path, char const *const argv[], char *const *envp) 
                 DMSG("Dep file %s\n", deps);
                 store_data("EMPTY DEP STUB", deps);
             }
+            if(map) {
+                DMSG("Map file %s\n", map);
+                store_data("EMPTY MAP STUB", map);
+            }
+        }
+        if(dtc) {
+            if(dtcd) {
+                DMSG("Dump dtc -d file %s\n", dtcd);
+                store_data("EMPTY DTC -D STUB", dtcd);
+            }
+            if(dtcout) {
+                DMSG("Dump dtc out file %s\n", dtcout);
+                store_data("EMPTY DTC OUT STUB", dtcout);
+            }
+            if(output) {
+                DMSG("Dump dtc -o file %s\n", output);
+                store_data("EMPTY DTC -o STUB", output);
+            }
+        }
+        if(ar && ara) {
+            store_data("EMPTY LIB STUB", ara);
         }
         if(export) {
             DMSG("Export %s\n", export);
