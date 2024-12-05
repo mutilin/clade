@@ -28,8 +28,8 @@
 
 #define DELIMITER "||"
 
-#define DMSG(...)  fprintf(stderr, __VA_ARGS__)
-//#define DMSG(...)  do{} while(0)
+//#define DMSG(...)  fprintf(stderr, __VA_ARGS__)
+#define DMSG(...)  do{} while(0)
 
 static void expand_newlines(char *dest, const char *src) {
     for (size_t i = 0; i < strlen(src); i++) {
